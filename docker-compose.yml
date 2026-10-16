@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aeo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aeo}
+      POSTGRES_DB: ${POSTGRES_DB:-aeo}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aeo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  agents:
+    build: ./services/agents
+    env_file: .env
+    ports:
+      - "${AGENTS_PORT:-8000}:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  web:
+    build: ./apps/web
+    env_file: .env
+    environment:
+      AGENTS_BASE_URL: http://agents:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agents:
+        condition: service_started
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+volumes:
+  pgdata:
